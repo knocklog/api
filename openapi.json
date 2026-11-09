@@ -1,0 +1,2863 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Knocklog API",
+    "version": "1.0.0",
+    "summary": "Analytics for AI agents: which AI agents visit a website, whether they are real, and what AI assistants send it.",
+    "description": "Knocklog shows which AI agents and crawlers visit a website, whether each one is who it claims to be, what they read, and the visitors and leads AI assistants send.\n\n**Start without an account:** `GET /v1/scan` checks how a site treats AI agents, `POST /v1/classify` identifies one request and `GET /v1/agents` lists known agents.\n\n**Measure a site:** `POST /v1/projects` creates a project and returns two keys and install code. Send traffic with the ingest key (`POST /v1/events` from a collector, or `POST /v1/logs` with access logs) and read the report with the admin key (`GET /v1/traffic`).\n\n**Keys.** Send them as `Authorization: Bearer <key>`. The ingest key (`kl_ing_…`) can only send traffic; it is safe in a collector on the site. The admin key (`kl_adm_…`) reads reports and manages the project; keep it private. Both are shown once, when the project is created.\n\n**For AI agents:** the same features are available over MCP at `https://api.knocklog.ai/mcp` (keys as arguments), `https://api.knocklog.ai/mcp/directory` (public tools, no sign-in) and `https://api.knocklog.ai/mcp/account` (OAuth sign-in).\n\nErrors are JSON: `{\"error\": {\"code\": \"…\", \"message\": \"…\"}}`. Fields may be added to responses at any time; clients should ignore fields they do not know.",
+    "contact": {
+      "name": "Knocklog",
+      "url": "https://knocklog.ai",
+      "email": "contact@knocklog.ai"
+    },
+    "termsOfService": "https://knocklog.ai/terms",
+    "license": {
+      "name": "Knocklog Terms of Service",
+      "url": "https://knocklog.ai/terms"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.knocklog.ai"
+    }
+  ],
+  "externalDocs": {
+    "description": "Directory of AI agents",
+    "url": "https://knocklog.ai/agents"
+  },
+  "tags": [
+    {
+      "name": "Agents",
+      "description": "Identify AI agents and check websites. No key needed."
+    },
+    {
+      "name": "Projects",
+      "description": "Create a project and send its traffic."
+    },
+    {
+      "name": "Reports",
+      "description": "Read what agents did on the site (admin key)."
+    },
+    {
+      "name": "Account",
+      "description": "Plan, keys, emails and integrations (admin key)."
+    },
+    {
+      "name": "Badge",
+      "description": "The public \"AI-ready\" badge."
+    }
+  ],
+  "paths": {
+    "/v1/agents": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "operationId": "listAgents",
+        "security": [],
+        "summary": "List known AI agents",
+        "description": "The directory of AI agents and crawlers: operator, purpose, User-Agent and robots.txt tokens, whether they obey robots.txt, what the operator publishes to recognise them, and the operator's documentation.",
+        "parameters": [
+          {
+            "name": "class",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "training_crawler",
+                "ai_search_crawler",
+                "user_action_agent",
+                "agentic_browser",
+                "coding_agent",
+                "search_engine",
+                "preview_fetcher",
+                "ads_checker",
+                "automation_client",
+                "scraper"
+              ]
+            },
+            "description": "Only agents of this class"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The directory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "classes",
+                    "count",
+                    "agents"
+                  ],
+                  "properties": {
+                    "classes": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AgentClass"
+                      }
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "agents": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Agent"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/classify": {
+      "post": {
+        "tags": [
+          "Agents"
+        ],
+        "operationId": "classifyRequest",
+        "security": [],
+        "summary": "Identify and verify one request",
+        "description": "Says whether a request came from an AI agent, which one, and whether it really is that agent. Pass at least the User-Agent or the headers; the IP address and URL make the answer more precise.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_agent": {
+                    "type": "string"
+                  },
+                  "ip": {
+                    "type": "string",
+                    "description": "Client IP address"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "method": {
+                    "type": "string",
+                    "default": "GET"
+                  },
+                  "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "description": "Request headers, lower-case names"
+                  }
+                }
+              },
+              "example": {
+                "user_agent": "Mozilla/5.0; compatible; GPTBot/1.4; +https://openai.com/gptbot",
+                "ip": "20.171.206.10",
+                "url": "https://example.com/pricing"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "What the request is",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Detection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; retry later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/scan": {
+      "get": {
+        "tags": [
+          "Agents"
+        ],
+        "operationId": "scanSite",
+        "security": [],
+        "summary": "Check how a site treats AI agents",
+        "description": "Reads the site's robots.txt, homepage, llms.txt and markdown support, and returns a score from 0 to 100, what each known agent may access, and what to fix. Results are cached for a short time.",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "example.com"
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            },
+            "description": "Skip the cache"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The site's readiness for AI agents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; retry later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Agents"
+        ],
+        "operationId": "scanSitePost",
+        "security": [],
+        "summary": "Check how a site treats AI agents (JSON body)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "domain"
+                ],
+                "properties": {
+                  "domain": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "domain": "example.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The site's readiness for AI agents",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; retry later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/plans": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "listPlans",
+        "security": [],
+        "summary": "List plans",
+        "responses": {
+          "200": {
+            "description": "Plans and limits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "plans": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Plan"
+                      }
+                    },
+                    "billingOpen": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/projects": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "createProject",
+        "security": [],
+        "summary": "Create a project",
+        "description": "Creates a project for a website. Returns the ingest and admin keys (shown only once) and install instructions with ready-to-paste code for the site's hosting. With `email`, the weekly summary is offered to that address, which must confirm by email.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "domain"
+                ],
+                "properties": {
+                  "domain": {
+                    "type": "string",
+                    "description": "The site's address",
+                    "example": "example.com"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Optional: send the weekly summary to this address after it is confirmed"
+                  },
+                  "lang": {
+                    "type": "string",
+                    "enum": [
+                      "en",
+                      "pt"
+                    ]
+                  }
+                }
+              },
+              "example": {
+                "domain": "example.com",
+                "name": "Example"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Project created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; retry later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/events": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "sendEvents",
+        "summary": "Send requests from a collector",
+        "description": "Sends up to 100 requests the site received. With the ingest key they are classified and stored in the project. Without a key they are only classified and returned, so anyone can try the classifier on their own traffic.\n\nSend each agent request with its IP address and headers (never cookies or authorization). For people's page views, send only HTML pages and keep the query string to utm_* parameters.",
+        "security": [
+          {
+            "ingestKey": []
+          },
+          {}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "events"
+                ],
+                "properties": {
+                  "events": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                      "$ref": "#/components/schemas/Event"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted. With a key: counts of what was stored. Without a key: one detection per event.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/IngestSummary"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ClassifiedEvents"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; retry later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/logs": {
+      "post": {
+        "tags": [
+          "Projects"
+        ],
+        "operationId": "importLogs",
+        "summary": "Import access logs",
+        "description": "Imports Apache or Nginx access log lines (combined format, as in cPanel Raw Access). Send the lines as text/plain, or as JSON `{\"log\": \"…\", \"host\": \"…\"}`. Up to 2 MiB per request; send larger logs in consecutive chunks. Re-sending a chunk is safe: duplicates are ignored.",
+        "security": [
+          {
+            "ingestKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "host",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Subdomain the log belongs to, if not the project's main host"
+          },
+          {
+            "name": "ips",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "auto",
+                "direct",
+                "proxy"
+              ],
+              "default": "auto"
+            },
+            "description": "Whether the first field is the visitor's IP (direct) or a proxy's (proxy)"
+          },
+          {
+            "name": "live",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            },
+            "description": "Set by log shippers that send every few minutes, so the project is watched like a live collector"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              },
+              "example": "20.171.206.11 - - [09/Nov/2026:11:00:00 +0000] \"GET /about/ HTTP/1.1\" 200 512 \"-\" \"Mozilla/5.0; compatible; GPTBot/1.4; +https://openai.com/gptbot\""
+            },
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "log"
+                ],
+                "properties": {
+                  "log": {
+                    "type": "string"
+                  },
+                  "host": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Imported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogImportSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; retry later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/plan": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "getPlan",
+        "summary": "Plan and usage",
+        "description": "The project's plan, this month's usage and the next plan up. Works with either key.",
+        "security": [
+          {
+            "ingestKey": []
+          },
+          {
+            "adminKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Plan and usage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanInfo"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/traffic": {
+      "get": {
+        "tags": [
+          "Reports"
+        ],
+        "operationId": "getTraffic",
+        "summary": "Traffic report",
+        "description": "What agents did on the site over the last N days: agent requests and people's page views, agents by class and by name, how many were verified or impostors, the pages agents read most, visits and leads sent by AI assistants, and a daily series. Companies that visited are listed on Business and up. The window is capped by the plan's history.",
+        "security": [
+          {
+            "adminKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 400,
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrafficReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key cannot do this (for example an ingest key on an admin endpoint)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/account": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "getAccount",
+        "summary": "Account overview",
+        "description": "Plan and usage, every benefit with whether the plan includes it and whether it is available today, when data last arrived, the summary contact, a checklist of first steps with live status, and the code snippets for the site (leads from AI, badge).",
+        "security": [
+          {
+            "adminKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "en",
+                "pt"
+              ]
+            },
+            "description": "Language of titles and texts"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key cannot do this (for example an ingest key on an admin endpoint)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/ready-files": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "getReadyFiles",
+        "summary": "Ready-made robots.txt and llms.txt (Pro)",
+        "description": "A draft llms.txt built from the site's homepage, and robots.txt lines for two AI policies. Review them before publishing.",
+        "security": [
+          {
+            "adminKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "en",
+                "pt"
+              ]
+            },
+            "description": "Language of titles and texts"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The drafts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Not included in the project's plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key cannot do this (for example an ingest key on an admin endpoint)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/keys/ingest": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "rotateIngestKey",
+        "summary": "New ingest key",
+        "description": "Issues a new ingest key and returns the install code with it filled in. The previous ingest key stops working within a minute, so update the collector right away.",
+        "security": [
+          {
+            "adminKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "en",
+                "pt"
+              ]
+            },
+            "description": "Language of titles and texts"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "New key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "ingestKey"
+                  ],
+                  "properties": {
+                    "ingestKey": {
+                      "type": "string"
+                    },
+                    "install": {
+                      "$ref": "#/components/schemas/InstallPlan"
+                    },
+                    "notice": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key cannot do this (for example an ingest key on an admin endpoint)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; retry later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/project/summary": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "subscribeSummary",
+        "summary": "Weekly summary by email",
+        "description": "Sends a confirmation link to the address. The weekly summary and account notices start once it is confirmed.",
+        "security": [
+          {
+            "adminKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "lang": {
+                    "type": "string",
+                    "enum": [
+                      "en",
+                      "pt"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Confirmation sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "email": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "example": "confirmation_sent"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key cannot do this (for example an ingest key on an admin endpoint)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; retry later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "updateIntegrations",
+        "summary": "Webhook, Slack and company emails",
+        "description": "Sets where Knocklog sends events as they happen (see Webhooks). `webhookUrl` takes a Slack incoming webhook or any public https endpoint (Business and up); `null` removes it. When a URL is set, the response includes a `webhookSecret` once: JSON deliveries carry `x-knocklog-signature: sha256=<HMAC-SHA256 of the body>`. `companyEmails` turns the email to the contact when a company visits on or off (Enterprise). `test: true` sends a test event.",
+        "security": [
+          {
+            "adminKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "webhookUrl": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uri"
+                  },
+                  "companyEmails": {
+                    "type": "boolean"
+                  },
+                  "test": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "Not included in the project's plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key cannot do this (for example an ingest key on an admin endpoint)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/install/cloudflare": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "installOnCloudflare",
+        "summary": "Install the collector on Cloudflare",
+        "description": "For sites whose DNS is on Cloudflare. Send a Cloudflare API token with Workers Scripts (edit), Workers Routes (edit) and Zone (read) permissions; `GET /v1/account` returns a link that creates one with exactly these permissions. Knocklog deploys the collector Worker and its routes and does not keep the token.",
+        "security": [
+          {
+            "adminKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key cannot do this (for example an ingest key on an admin endpoint)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; retry later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/billing/checkout": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "startCheckout",
+        "summary": "Checkout link for a paid plan",
+        "description": "Returns a checkout page where the site owner reviews the price and pays. The plan changes as soon as payment completes.",
+        "security": [
+          {
+            "adminKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "plan"
+                ],
+                "properties": {
+                  "plan": {
+                    "type": "string",
+                    "enum": [
+                      "pro",
+                      "business"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checkout link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key cannot do this (for example an ingest key on an admin endpoint)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; retry later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/billing/portal": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "operationId": "openBillingPortal",
+        "summary": "Link to manage the subscription",
+        "description": "A short-lived link to see invoices, change the card, switch plans or cancel. Only for projects with a paid subscription.",
+        "security": [
+          {
+            "adminKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Portal link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key cannot do this (for example an ingest key on an admin endpoint)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests; retry later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Temporarily unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/badge/{project}.json": {
+      "get": {
+        "tags": [
+          "Badge"
+        ],
+        "operationId": "getBadgeStatus",
+        "security": [],
+        "summary": "Badge status",
+        "description": "Whether the project is receiving the site's traffic, as shown by the badge.",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^p[0-9a-f]{20}$",
+              "example": "p8c76f5ff4c1e0f0e7b88"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "active"
+                  ],
+                  "properties": {
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "updatedAt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/badge/{project}.svg": {
+      "get": {
+        "tags": [
+          "Badge"
+        ],
+        "operationId": "getBadgeImage",
+        "security": [],
+        "summary": "Badge image",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^p[0-9a-f]{20}$",
+              "example": "p8c76f5ff4c1e0f0e7b88"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "en",
+                "pt"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SVG image",
+            "content": {
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {
+    "company.visited": {
+      "post": {
+        "operationId": "companyVisited",
+        "security": [],
+        "summary": "A company visited the site",
+        "description": "Sent at most once per company per day, for visits from the networks of identified organizations (Business and up). Slack URLs receive a text message instead.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "type",
+                  "project",
+                  "site",
+                  "occurredAt",
+                  "data"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "company.visited"
+                  },
+                  "project": {
+                    "type": "string"
+                  },
+                  "site": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "occurredAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "$ref": "#/components/schemas/CompanyVisit"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Received"
+          }
+        }
+      }
+    },
+    "lead.from_ai": {
+      "post": {
+        "operationId": "leadFromAi",
+        "security": [],
+        "summary": "A visitor sent by an AI assistant became a lead",
+        "description": "A form sent or a WhatsApp, phone or email tap by someone who arrived from an AI assistant (needs leads.js on the site).",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "type",
+                  "project",
+                  "site",
+                  "occurredAt",
+                  "data"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "lead.from_ai"
+                  },
+                  "project": {
+                    "type": "string"
+                  },
+                  "site": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "occurredAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "assistant": {
+                        "type": "string",
+                        "example": "ChatGPT"
+                      },
+                      "action": {
+                        "type": "string",
+                        "enum": [
+                          "form",
+                          "whatsapp",
+                          "phone",
+                          "email"
+                        ]
+                      },
+                      "page": {
+                        "type": "string",
+                        "example": "/contact"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Received"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ingestKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Ingest key (kl_ing_…): sends traffic only."
+      },
+      "adminKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Admin key (kl_adm_…): reads reports and manages the project. Keep it private."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "unauthorized"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "AgentClass": {
+        "type": "string",
+        "enum": [
+          "training_crawler",
+          "ai_search_crawler",
+          "user_action_agent",
+          "agentic_browser",
+          "coding_agent",
+          "search_engine",
+          "preview_fetcher",
+          "ads_checker",
+          "automation_client",
+          "scraper"
+        ],
+        "description": "training_crawler: collects content to train models. ai_search_crawler: indexes pages for AI search. user_action_agent: an assistant fetching a page because a person asked. agentic_browser: a browser driven by an AI. coding_agent: an AI coding tool fetching docs. search_engine: classic search. preview_fetcher: link previews. ads_checker: ad landing-page checks. automation_client: scripts and HTTP libraries. scraper: undeclared bots."
+      },
+      "Agent": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "operator",
+          "agentClass",
+          "userAgentTokens",
+          "robotsTokens",
+          "respectsRobots",
+          "purpose"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "openai-gptbot"
+          },
+          "name": {
+            "type": "string",
+            "example": "GPTBot"
+          },
+          "operator": {
+            "type": "string",
+            "example": "OpenAI"
+          },
+          "agentClass": {
+            "$ref": "#/components/schemas/AgentClass"
+          },
+          "userAgentTokens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "robotsTokens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Names it obeys in robots.txt"
+          },
+          "respectsRobots": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "partial",
+              "no",
+              "unknown"
+            ]
+          },
+          "verification": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "What the operator publishes to recognise its agent"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "docsUrl": {
+            "type": "string",
+            "format": "uri",
+            "description": "The operator's documentation"
+          },
+          "checkedAt": {
+            "type": "string",
+            "description": "When the entry was last checked against docsUrl"
+          }
+        }
+      },
+      "Detection": {
+        "type": "object",
+        "required": [
+          "isAgent",
+          "declaredBy",
+          "verification",
+          "spoofed",
+          "trust"
+        ],
+        "properties": {
+          "isAgent": {
+            "type": "boolean",
+            "description": "Any automated client: a known agent, a signed agent or a bot recognised by its behaviour"
+          },
+          "agent": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "operator": {
+                "type": "string"
+              }
+            }
+          },
+          "agentClass": {
+            "$ref": "#/components/schemas/AgentClass"
+          },
+          "declaredBy": {
+            "type": "string",
+            "enum": [
+              "signature",
+              "user_agent",
+              "heuristic",
+              "none"
+            ],
+            "description": "How the identity was claimed"
+          },
+          "verification": {
+            "type": "object",
+            "required": [
+              "status"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "verified",
+                  "failed",
+                  "unverifiable",
+                  "not_checked"
+                ],
+                "description": "verified: the claim was confirmed. failed: there is positive evidence the claim is false. unverifiable: the operator publishes nothing that can be checked. not_checked: no identity was claimed."
+              },
+              "steps": {
+                "type": "array",
+                "description": "The checks that ran. Their names may change.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "method": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "detail": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "spoofed": {
+            "type": "boolean",
+            "description": "The request claims a known agent's identity and the claim failed"
+          },
+          "trust": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low",
+              "none"
+            ]
+          }
+        }
+      },
+      "ScanReport": {
+        "type": "object",
+        "required": [
+          "origin",
+          "scannedAt",
+          "reachable",
+          "score",
+          "grade",
+          "agents",
+          "findings"
+        ],
+        "properties": {
+          "origin": {
+            "type": "string",
+            "format": "uri"
+          },
+          "scannedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reachable": {
+            "type": "boolean",
+            "description": "false when the site answered nothing usable"
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "grade": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "F"
+            ]
+          },
+          "robots": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              },
+              "found": {
+                "type": "boolean"
+              },
+              "sitemaps": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "homepage": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Status, title, visible text and whether the page needs JavaScript to show its content"
+          },
+          "llmsTxt": {
+            "type": "object",
+            "properties": {
+              "found": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": [
+                  "integer",
+                  "string"
+                ]
+              }
+            }
+          },
+          "markdownNegotiation": {
+            "type": "object",
+            "properties": {
+              "supported": {
+                "type": "boolean"
+              }
+            }
+          },
+          "agents": {
+            "type": "array",
+            "description": "What each known agent may access under robots.txt",
+            "items": {
+              "type": "object",
+              "properties": {
+                "agentId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "operator": {
+                  "type": "string"
+                },
+                "agentClass": {
+                  "$ref": "#/components/schemas/AgentClass"
+                },
+                "robotsToken": {
+                  "type": "string"
+                },
+                "allowed": {
+                  "type": "boolean"
+                },
+                "matchedBy": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "severity",
+                "title",
+                "detail"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "critical",
+                    "warning",
+                    "info",
+                    "good"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "recommendation": {
+                  "type": "string"
+                },
+                "params": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "Event": {
+        "type": "object",
+        "required": [
+          "timestamp",
+          "method",
+          "url",
+          "headers"
+        ],
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the request reached the site"
+          },
+          "method": {
+            "type": "string",
+            "example": "GET"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Full URL requested"
+          },
+          "ip": {
+            "type": "string",
+            "description": "Client IP address. Needed to verify agents. Not stored."
+          },
+          "status": {
+            "type": "integer",
+            "description": "HTTP status the site answered"
+          },
+          "bytes": {
+            "type": "integer"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Lower-case request headers: user-agent, accept, accept-language, referer, from, signature, signature-input, signature-agent. Never send cookies or authorization."
+          },
+          "sampleRate": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1,
+            "description": "If people's page views are sampled, the share sent; each event then counts as 1/sampleRate"
+          }
+        }
+      },
+      "IngestSummary": {
+        "type": "object",
+        "required": [
+          "project",
+          "received",
+          "accepted",
+          "stored"
+        ],
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "received": {
+            "type": "integer"
+          },
+          "accepted": {
+            "type": "integer"
+          },
+          "agents": {
+            "type": "integer"
+          },
+          "humans": {
+            "type": "integer"
+          },
+          "ignored": {
+            "type": "integer"
+          },
+          "stored": {
+            "type": "integer"
+          },
+          "duplicates": {
+            "type": "integer"
+          },
+          "overlapping": {
+            "type": "integer",
+            "description": "Skipped because a live collector already covers that time"
+          },
+          "overQuota": {
+            "type": "integer"
+          },
+          "rejected": {
+            "type": "integer"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        }
+      },
+      "LogImportSummary": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/IngestSummary"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "lines": {
+                "type": "integer"
+              },
+              "unparsable": {
+                "type": "integer"
+              },
+              "clientIps": {
+                "type": "string",
+                "enum": [
+                  "direct",
+                  "proxy"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "ClassifiedEvents": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "integer"
+          },
+          "rejected": {
+            "type": "integer"
+          },
+          "stored": {
+            "const": false
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "ok": {
+                  "type": "boolean"
+                },
+                "detection": {
+                  "$ref": "#/components/schemas/Detection"
+                },
+                "error": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "InstallPlan": {
+        "type": "object",
+        "description": "Install options for the site's hosting, the recommended one first, each with steps and ready-to-paste code",
+        "properties": {
+          "origin": {
+            "type": "string"
+          },
+          "recommended": {
+            "type": "string",
+            "example": "cloudflare_worker"
+          },
+          "methods": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "bestFor": {
+                  "type": "string"
+                },
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "realtime": {
+                  "type": "boolean"
+                },
+                "code": {
+                  "type": "object",
+                  "properties": {
+                    "filename": {
+                      "type": "string"
+                    },
+                    "language": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "verify": {
+            "type": "string"
+          }
+        }
+      },
+      "ProjectCreated": {
+        "type": "object",
+        "required": [
+          "project",
+          "keys",
+          "install"
+        ],
+        "properties": {
+          "project": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^p[0-9a-f]{20}$",
+                "example": "p8c76f5ff4c1e0f0e7b88"
+              },
+              "domain": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "keys": {
+            "type": "object",
+            "description": "Shown only once",
+            "properties": {
+              "ingest": {
+                "type": "string",
+                "example": "kl_ing_…"
+              },
+              "admin": {
+                "type": "string",
+                "example": "kl_adm_…"
+              }
+            }
+          },
+          "install": {
+            "$ref": "#/components/schemas/InstallPlan"
+          },
+          "notice": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          }
+        }
+      },
+      "Plan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "free",
+              "pro",
+              "business",
+              "enterprise"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "priceUsd": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "limits": {
+            "type": "object",
+            "properties": {
+              "eventsPerMonth": {
+                "type": "integer"
+              },
+              "historyDays": {
+                "type": "integer"
+              },
+              "sites": {
+                "type": "integer"
+              }
+            }
+          },
+          "includes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "selfServe": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PlanInfo": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/Plan"
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "month": {
+                "type": "string"
+              },
+              "eventsThisMonth": {
+                "type": "integer"
+              },
+              "eventsPerMonth": {
+                "type": "integer"
+              },
+              "historyDays": {
+                "type": "integer"
+              }
+            }
+          },
+          "subscribed": {
+            "type": "boolean"
+          },
+          "next": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Plan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "billingOpen": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TrafficReport": {
+        "type": "object",
+        "required": [
+          "project",
+          "window",
+          "totals",
+          "byAgent",
+          "daily"
+        ],
+        "properties": {
+          "project": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "window": {
+            "type": "object",
+            "properties": {
+              "days": {
+                "type": "integer"
+              },
+              "from": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "to": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "agentRequests": {
+                "type": "integer"
+              },
+              "agentPageviews": {
+                "type": "integer"
+              },
+              "humanPageviews": {
+                "type": "integer"
+              },
+              "agentShare": {
+                "type": "number",
+                "description": "Page views by identified, genuine agents ÷ (those + people's page views)"
+              },
+              "verified": {
+                "type": "integer"
+              },
+              "spoofed": {
+                "type": "integer"
+              },
+              "unverified": {
+                "type": "integer"
+              },
+              "aiReferrals": {
+                "type": "integer",
+                "description": "Visits sent by AI assistants"
+              },
+              "aiLeads": {
+                "type": "integer"
+              },
+              "companies": {
+                "type": "integer"
+              },
+              "knownVisitors": {
+                "type": "integer"
+              },
+              "agentCompanies": {
+                "type": "integer"
+              }
+            }
+          },
+          "previous": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "description": "The same totals for the previous window, when the plan's history reaches it"
+          },
+          "byClass": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "agentClass": {
+                  "$ref": "#/components/schemas/AgentClass"
+                },
+                "requests": {
+                  "type": "integer"
+                },
+                "verified": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "byAgent": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "agentId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "operator": {
+                  "type": "string"
+                },
+                "agentClass": {
+                  "$ref": "#/components/schemas/AgentClass"
+                },
+                "requests": {
+                  "type": "integer"
+                },
+                "verified": {
+                  "type": "integer"
+                },
+                "spoofed": {
+                  "type": "integer"
+                },
+                "lastSeen": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "topAgentPages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "requests": {
+                  "type": "integer"
+                },
+                "agents": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "aiReferrals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "assistant": {
+                  "type": "string"
+                },
+                "visits": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "aiLeads": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Leads by assistant, action and page (Pro and up)"
+          },
+          "daily": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "day": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "agentRequests": {
+                  "type": "integer"
+                },
+                "verified": {
+                  "type": "integer"
+                },
+                "spoofed": {
+                  "type": "integer"
+                },
+                "humanPageviews": {
+                  "type": "integer"
+                },
+                "aiReferrals": {
+                  "type": "integer"
+                },
+                "aiLeads": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "companies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Company"
+            },
+            "description": "Organizations whose own network people browsed from (Business and up)"
+          },
+          "agentCompanies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "description": "Companies behind agents and scripts (Business and up)"
+          },
+          "knownVisitors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Company": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "tradeName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "description": "business, education or government; other values may be added"
+          },
+          "country": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "taxId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Brazilian CNPJ when public"
+          },
+          "domain": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sector": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "size": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "city": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "region": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "CompanyVisit": {
+        "type": "object",
+        "properties": {
+          "company": {
+            "$ref": "#/components/schemas/Company"
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "interest": {
+            "type": "boolean",
+            "description": "The visit included pricing, contact or similar pages"
+          }
+        }
+      },
+      "Account": {
+        "type": "object",
+        "required": [
+          "project",
+          "plan",
+          "usage",
+          "steps",
+          "benefits"
+        ],
+        "properties": {
+          "project": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "plan": {
+            "$ref": "#/components/schemas/Plan"
+          },
+          "usage": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "activity": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "When data first and last arrived, and the last 24 hours"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "todo",
+                    "pending",
+                    "unknown"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "benefits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "plan": {
+                  "type": "string"
+                },
+                "included": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "live",
+                    "soon"
+                  ]
+                }
+              }
+            }
+          },
+          "contact": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "email": {
+                "type": "string"
+              },
+              "confirmed": {
+                "type": "boolean"
+              },
+              "lang": {
+                "type": "string"
+              }
+            }
+          },
+          "actions": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Code snippets for the site (leads from AI, badge) and how to complete each step"
+          }
+        }
+      }
+    }
+  }
+}
