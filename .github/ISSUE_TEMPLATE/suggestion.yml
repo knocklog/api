@@ -1,0 +1,9 @@
+name: Suggestion
+description: An endpoint, field, integration or example you would like
+labels: [suggestion]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What would you like, and what would you use it for?
+    validations: { required: true }

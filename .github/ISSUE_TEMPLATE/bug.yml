@@ -1,0 +1,15 @@
+name: Something does not work
+description: An error, a wrong result or a mismatch between the docs and the API
+labels: [bug]
+body:
+  - type: input
+    id: endpoint
+    attributes:
+      label: Endpoint or MCP tool
+    validations: { required: true }
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include the status code and the error code from the response. Remove keys and any personal data first.
+    validations: { required: true }

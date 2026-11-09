@@ -1,0 +1,17 @@
+name: Question
+description: Ask how to do something with the API or the MCP server
+labels: [question]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: What are you trying to do?
+    validations: { required: true }
+  - type: input
+    id: endpoint
+    attributes:
+      label: Endpoint or MCP tool
+      placeholder: "GET /v1/traffic, or scan_site"
+  - type: markdown
+    attributes:
+      value: "Never paste an admin or ingest key here. Write to contact@knocklog.ai for anything about your own project."

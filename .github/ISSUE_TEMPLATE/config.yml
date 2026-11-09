@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: API documentation
+    url: https://knocklog.ai/docs/api
+    about: Every endpoint, with examples.
+  - name: Private question or account issue
+    url: mailto:contact@knocklog.ai
+    about: Anything about your own project or billing. Never post keys in an issue.
